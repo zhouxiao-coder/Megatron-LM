@@ -41,7 +41,8 @@ def generate_and_post_process(model,
                               use_eod_token_for_early_termination=True,
                               stop_on_double_eol=False,
                               stop_on_eol=False,
-                              random_seed=-1):
+                              random_seed=-1,
+                              return_tokens=False):
     """Run inference and post-process outputs, i.e., detokenize,
     move to cpu and convert to list."""
 
@@ -61,6 +62,9 @@ def generate_and_post_process(model,
         stop_on_double_eol=stop_on_double_eol,
         stop_on_eol=stop_on_eol,
         random_seed=random_seed)
+    
+    if return_tokens:
+        return tokens
 
     # Only post-process on first stage.
     if mpu.is_pipeline_first_stage():
@@ -157,7 +161,8 @@ def beam_search_and_post_process(model,
                                  add_BOS=False,
                                  stop_token=50256,
                                  num_return_gen=1,
-                                 length_penalty=1):
+                                 length_penalty=1,
+                                 return_tokens=False):
     """Run beam search and post-process outputs, i.e., detokenize,
     move to cpu and convert to list."""
 
@@ -170,6 +175,9 @@ def beam_search_and_post_process(model,
                                  stop_token=stop_token,
                                  num_return_gen=num_return_gen,
                                  length_penalty=length_penalty)
+    
+    if return_tokens:
+        return tokens
     # Only post-process on first stage.
     if mpu.is_pipeline_first_stage():
         lengths = tokens.size(1)*torch.ones(beam_size, dtype=torch.int64, device=torch.cuda.current_device()) 
