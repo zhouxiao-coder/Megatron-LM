@@ -8,7 +8,7 @@ from megatron import get_args
 from megatron.core import tensor_parallel
 from .module import MegatronModule
 
-from .enums import AttnMaskType
+from megatron.model.enums import AttnMaskType
 from .language_model import parallel_lm_logits
 from .language_model import get_language_model
 from .utils import init_method_normal
@@ -17,7 +17,7 @@ from .utils import scaled_init_method_normal
 
 def post_language_model_processing(lm_output, labels, logit_weights,
                                    parallel_output,
-                                   fp16_lm_cross_entropy):
+                                   fp16_lm_cross_entropy,return_logits=False,):
 
     # Output. Format [s b h]
     output = parallel_lm_logits(
@@ -26,8 +26,10 @@ def post_language_model_processing(lm_output, labels, logit_weights,
         parallel_output)
 
     if labels is None:
+        # gather along the vocab dimension
+        output = mpu.gather_from_tensor_model_parallel_region(output)
         # [s b h] => [b s h]
-        return output.transpose(0,1).contiguous()
+        return output.float().transpose(0,1).contiguous()
     else:
         # [b s] => [s b]
         labels = labels.transpose(0,1).contiguous()
@@ -39,7 +41,12 @@ def post_language_model_processing(lm_output, labels, logit_weights,
         
         # [s b] => [b, s]
         loss = loss.transpose(0,1).contiguous()
-        return loss
+        if return_logits:
+            # gather along the vocab dimension
+            output = mpu.gather_from_tensor_model_parallel_region(output)
+            return loss, output.float().transpose(0,1).contiguous()
+        else:
+            return loss
 
 
 class GPTModel(MegatronModule):
@@ -57,6 +64,7 @@ class GPTModel(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
+        self.return_logits = args.return_logits
 
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
@@ -75,20 +83,22 @@ class GPTModel(MegatronModule):
         self.language_model.set_input_tensor(input_tensor)
 
     def forward(self, input_ids, position_ids, attention_mask, labels=None,
-                tokentype_ids=None, inference_params=None):
+                tokentype_ids=None, inference_params=None, encoder_input=None,):
 
         lm_output = self.language_model(
             input_ids,
             position_ids,
             attention_mask,
-            inference_params=inference_params)
+            inference_params=inference_params,
+            encoder_input=encoder_input)
 
         if self.post_process:
             return post_language_model_processing(
                 lm_output, labels,
                 self.word_embeddings_weight(),
                 self.parallel_output,
-                self.fp16_lm_cross_entropy)
+                self.fp16_lm_cross_entropy,
+                return_logits=self.return_logits)
         else:
             return lm_output
 
