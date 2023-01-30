@@ -36,7 +36,7 @@ setuptools.setup(
     ],
     python_requires=">=3.6",
     packages=setuptools.find_packages(),
-    install_requires=["nltk", "six", "regex", "torch>=1.12.0", "pybind11"],
+    install_requires=["nltk", "six", "regex", "torch>=1.12.0", "pybind11", "tokenizers"],
     # Add in any packaged data.
     include_package_data=True,
     zip_safe=False,
