@@ -618,6 +618,17 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             'elapsed-time-per-iteration': elapsed_time_per_iteration,
             **loss_dict
         }
+
+        class DummyTimeWriter:
+            def __init__(self):
+                pass
+
+            def add_scalar(self, name, val, *args_, **kwargs):
+                metrics[f"timer/{name}"] = val
+
+        timers.write(timers_to_log, DummyTimeWriter(), iteration,
+                     normalizer=total_iterations)
+
         wandb.log(metrics, step=iteration)
 
     if iteration % args.log_interval == 0:
