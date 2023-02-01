@@ -137,7 +137,7 @@ def pretrain(train_valid_test_dataset_provider,
     else:
         train_data_iterator, valid_data_iterator, test_data_iterator \
             = build_train_valid_test_data_iterators(
-                train_valid_test_dataset_provider)
+            train_valid_test_dataset_provider)
     timers('train/valid/test-data-iterators-setup').stop()
     print_datetime('after dataloaders are built')
 
@@ -173,8 +173,8 @@ def pretrain(train_valid_test_dataset_provider,
                                    0, process_non_loss_data_func,
                                    True)
 
-def update_train_iters(args):
 
+def update_train_iters(args):
     # For iteration-based training, we don't need to do anything
     if args.train_iters:
         return
@@ -210,7 +210,7 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
 
     # Build model.
     if mpu.get_pipeline_model_parallel_world_size() > 1 and \
-       args.virtual_pipeline_model_parallel_size is not None:
+            args.virtual_pipeline_model_parallel_size is not None:
         assert model_type != ModelType.encoder_and_decoder, \
             "Interleaved schedule not supported for model with both encoder and decoder"
         model = []
@@ -394,7 +394,7 @@ def setup_model_and_optimizer(model_provider_func,
 
     # get model without FP16 and/or TorchDDP wrappers
     if args.iteration == 0 and len(unwrapped_model) == 1 \
-        and hasattr(unwrapped_model[0], 'init_state_dict_from_bert'):
+            and hasattr(unwrapped_model[0], 'init_state_dict_from_bert'):
         print_rank_0("Initializing ICT from pretrained BERT model")
         unwrapped_model[0].init_state_dict_from_bert()
         if args.fp16:
@@ -544,7 +544,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
 
     # Calculate batch size.
     batch_size = args.micro_batch_size * args.data_parallel_size * \
-        get_num_microbatches()
+                 get_num_microbatches()
 
     total_iterations = total_loss_dict[advanced_iters_key] + \
                        total_loss_dict[skipped_iters_key]
@@ -552,7 +552,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     # Tensorboard values.
     # Timer requires all the ranks to call.
     if args.log_timers_to_tensorboard and \
-       (iteration % args.tensorboard_log_interval == 0):
+            (iteration % args.tensorboard_log_interval == 0):
         timers.write(timers_to_log, writer, iteration,
                      normalizer=total_iterations)
     if writer and (iteration % args.tensorboard_log_interval == 0):
@@ -565,7 +565,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             writer.add_scalar('batch-size vs samples', batch_size,
                               args.consumed_train_samples)
         for key in loss_dict:
-            writer.add_scalar(key , loss_dict[key], iteration)
+            writer.add_scalar(key, loss_dict[key], iteration)
             writer.add_scalar(key + ' vs samples', loss_dict[key],
                               args.consumed_train_samples)
         if args.log_loss_scale_to_tensorboard:
@@ -605,14 +605,17 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                 mem_stats["allocation.all.current"],
                 iteration,
             )
-    
+
     # Weights and biases reporting
     if (iteration % args.log_interval == 0) and is_last_rank() and args.wandb_project_name:
+        elapsed_time = timers('interval-time').elapsed(barrier=True)
+        elapsed_time_per_iteration = elapsed_time / total_iterations
         metrics = {
             'learning-rate': learning_rate,
             'samples': args.consumed_train_samples,
             'loss-scale': loss_scale,
             'grad-norm': grad_norm,
+            'elapsed-time-per-iteration': elapsed_time_per_iteration,
             **loss_dict
         }
         wandb.log(metrics, step=iteration)
@@ -727,13 +730,13 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
         # Autoresume
         if args.adlr_autoresume and \
-           (iteration % args.adlr_autoresume_interval == 0):
+                (iteration % args.adlr_autoresume_interval == 0):
             check_adlr_autoresume_termination(iteration, model, optimizer,
                                               opt_param_scheduler)
 
         # Evaluation
         if args.eval_interval and iteration % args.eval_interval == 0 and \
-           args.do_valid:
+                args.do_valid:
             prefix = 'iteration {}'.format(iteration)
             evaluate_and_print_results(prefix, forward_step_func,
                                        valid_data_iterator, model,
@@ -751,7 +754,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                 sys.exit()
 
         if args.save and args.save_interval and \
-           iteration % args.save_interval == 0:
+                iteration % args.save_interval == 0:
             save_checkpoint_and_time(iteration, model, optimizer,
                                      opt_param_scheduler)
             saved_checkpoint = True
@@ -779,7 +782,6 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             torch.distributed.barrier()
             print_datetime('exiting program at iteration {}'.format(iteration))
             sys.exit()
-
 
     return iteration
 
@@ -843,6 +845,7 @@ def evaluate(forward_step_func,
 
     return total_loss_dict, collected_non_loss_data
 
+
 def evaluate_and_print_results(prefix, forward_step_func,
                                data_iterator, model,
                                iteration, process_non_loss_data_func,
@@ -871,7 +874,7 @@ def evaluate_and_print_results(prefix, forward_step_func,
                                   iteration)
                 writer.add_scalar('{} validation ppl vs samples'.format(key),
                                   ppl, args.consumed_train_samples)
-    
+
     # Weights and biases reporting
     if is_last_rank() and args.wandb_project_name:
         metrics = {
@@ -893,6 +896,7 @@ def cyclic_iter(iter):
         for x in iter:
             yield x
 
+
 def build_train_valid_test_data_iterators(
         build_train_valid_test_datasets_provider):
     """XXX"""
@@ -910,7 +914,7 @@ def build_train_valid_test_data_iterators(
     if args.iteration > 0 and args.consumed_valid_samples == 0:
         if args.train_samples is None:
             args.consumed_valid_samples = (args.iteration // args.eval_interval) * \
-                args.eval_iters * args.global_batch_size
+                                          args.eval_iters * args.global_batch_size
 
     # Data loader only on rank 0 of each model parallel group.
     if mpu.get_tensor_model_parallel_rank() == 0:
@@ -966,19 +970,19 @@ def build_train_valid_test_data_iterators(
 
     if train_dataloader is not None:
         train_data_iterator = iter(train_dataloader) if dl_type == 'single' \
-                              else iter(cyclic_iter(train_dataloader))
+            else iter(cyclic_iter(train_dataloader))
     else:
         train_data_iterator = None
 
     if valid_dataloader is not None:
         valid_data_iterator = iter(valid_dataloader) if dl_type == 'single' \
-                              else iter(cyclic_iter(valid_dataloader))
+            else iter(cyclic_iter(valid_dataloader))
     else:
         valid_data_iterator = None
 
     if test_dataloader is not None:
         test_data_iterator = iter(test_dataloader) if dl_type == 'single' \
-                             else iter(cyclic_iter(test_dataloader))
+            else iter(cyclic_iter(test_dataloader))
     else:
         test_data_iterator = None
 
