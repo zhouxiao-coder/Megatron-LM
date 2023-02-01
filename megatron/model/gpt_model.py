@@ -64,7 +64,10 @@ class GPTModel(MegatronModule):
         self.pre_process = pre_process
         self.post_process = post_process
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-        self.return_logits = args.return_logits
+        if hasattr(args, 'return_logits'):
+            self.return_logits = args.return_logits
+        else:
+            self.return_logits = False
 
         self.language_model, self._language_model_key = get_language_model(
             num_tokentypes=num_tokentypes,
