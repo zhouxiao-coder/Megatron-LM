@@ -636,8 +636,9 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if total_params != 0:
             metrics['runtime/flops'] = get_flops(total_params, elapsed_time_per_iteration)
             print('FLOPS: {}'.format(metrics['runtime/flops']), flush=True)
-
+        print("before wandb log")
         wandb.log(metrics, step=iteration)
+        print("after wandb log")
 
     if iteration % args.log_interval == 0:
         elapsed_time = timers('interval-time').elapsed(barrier=True)
