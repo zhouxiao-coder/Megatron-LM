@@ -637,19 +637,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             metrics['runtime/flops'] = get_flops(total_params, elapsed_time_per_iteration)
             print('FLOPS: {}'.format(metrics['runtime/flops']), flush=True)
 
-        class DummyTimeWriter:
-            def __init__(self):
-                pass
-
-            def add_scalar(self, name, val, *args_, **kwargs):
-                metrics[f"runtime/timer_{name}"] = val
-
-        print('before timers written', flush=True)
-        timers.write(timers_to_log, DummyTimeWriter(), iteration,
-                     normalizer=total_iterations)
-        print('timers written', flush=True)
         wandb.log(metrics, step=iteration)
-        print("wandb logged", flush=True)
 
     if iteration % args.log_interval == 0:
         elapsed_time = timers('interval-time').elapsed(barrier=True)
