@@ -635,7 +635,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         }
         if total_params != 0:
             metrics['runtime/flops'] = get_flops(total_params, elapsed_time_per_iteration)
-            print_rank_0('FLOPS: {}'.format(metrics['runtime/flops']))
+            print('FLOPS: {}'.format(metrics['runtime/flops']), flush=True)
 
         class DummyTimeWriter:
             def __init__(self):
@@ -644,10 +644,10 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             def add_scalar(self, name, val, *args_, **kwargs):
                 metrics[f"runtime/timer_{name}"] = val
 
-        print_rank_0('before timers written')
+        print('before timers written', flush=True)
         timers.write(timers_to_log, DummyTimeWriter(), iteration,
                      normalizer=total_iterations)
-        print_rank_0('timers written')
+        print('timers written', flush=True)
         wandb.log(metrics, step=iteration)
 
     if iteration % args.log_interval == 0:
@@ -755,7 +755,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     report_memory_flag = True
     total_params = _calculate_total_params(model)
     while iteration < args.train_iters:
-        debug_print("1")
+        debug_print(f"1 {iteration}")
         update_num_microbatches(args.consumed_train_samples)
         debug_print("2")
         args.curr_iteration = iteration
