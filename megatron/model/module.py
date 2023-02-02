@@ -8,6 +8,7 @@ from torch.nn.parameter import Parameter
 
 from megatron import get_args
 from megatron.core import mpu, tensor_parallel
+from megatron.utils import print_rank_0
 
 _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
@@ -27,6 +28,7 @@ class MegatronModule(torch.nn.Module):
         self.share_word_embeddings = share_word_embeddings
 
     def _calculate_total_params(self) -> int:
+        print_rank_0(" > calculating total number of parameters ...")
         if mpu.get_data_parallel_rank() == 0:
             params = sum([p.nelement() for p in self.parameters()])
 
@@ -41,6 +43,7 @@ class MegatronModule(torch.nn.Module):
         total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
         torch.distributed.all_reduce(total_n_parameters)
         total_n_parameters = total_n_parameters.item()
+        print_rank_0(" > total number of parameters: {}".format(total_n_parameters))
         return total_n_parameters
 
     def state_dict_for_save_checkpoint(self, prefix='', keep_vars=False):
