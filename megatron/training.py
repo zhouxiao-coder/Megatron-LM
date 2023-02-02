@@ -709,9 +709,8 @@ def _calculate_total_params(model) -> int:
     print_rank_0(" > calculating total number of parameters ...")
     params = 0
     for model_module in model:
-        model_module.train()
         if mpu.get_data_parallel_rank() == 0:
-            params += sum([p.nelement() for p in m.parameters()])
+            params += sum([p.nelement() for p in model_module.parameters()])
 
             print(
                 " > number of parameters on tensor parallel rank {}: {}".format(
