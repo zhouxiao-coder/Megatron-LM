@@ -34,25 +34,6 @@ class MegatronModule(torch.nn.Module):
         super(MegatronModule, self).__init__()
         self.share_word_embeddings = share_word_embeddings
 
-    def _calculate_total_params(self) -> int:
-        _print_rank_0(" > calculating total number of parameters ...")
-        if mpu.get_data_parallel_rank() == 0:
-            params = sum([p.nelement() for p in self.parameters()])
-
-            print(
-                " > number of parameters on tensor parallel rank {}: {}".format(
-                    mpu.get_tensor_model_parallel_rank(), params
-                ),
-                flush=True,
-            )
-        else:
-            params = 0
-        total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
-        torch.distributed.all_reduce(total_n_parameters)
-        total_n_parameters = total_n_parameters.item()
-        _print_rank_0(" > total number of parameters: {}".format(total_n_parameters))
-        return total_n_parameters
-
     def state_dict_for_save_checkpoint(self, prefix='', keep_vars=False):
         """Use this function to override the state dict for
         saving checkpoints."""

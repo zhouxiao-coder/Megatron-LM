@@ -634,7 +634,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         }
         if total_params != 0:
             metrics['runtime/flops'] = get_flops(total_params, elapsed_time_per_iteration)
-        print_rank_0('FLOPS: {}'.format(metrics['runtime/flops']))
+            print_rank_0('FLOPS: {}'.format(metrics['runtime/flops']))
 
         class DummyTimeWriter:
             def __init__(self):
@@ -705,6 +705,27 @@ def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler):
     timers.log(['save-checkpoint'])
 
 
+def _calculate_total_params(model) -> int:
+    print_rank_0(" > calculating total number of parameters ...")
+    params = 0
+    for model_module in model:
+        model_module.train()
+        if mpu.get_data_parallel_rank() == 0:
+            params += sum([p.nelement() for p in m.parameters()])
+
+            print(
+                " > number of parameters on tensor parallel rank {}: {}".format(
+                    mpu.get_tensor_model_parallel_rank(), params
+                ),
+                flush=True,
+            )
+    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
+    torch.distributed.all_reduce(total_n_parameters)
+    total_n_parameters = total_n_parameters.item()
+    print_rank_0(" > total number of parameters: {}".format(total_n_parameters))
+    return total_n_parameters
+
+
 def train(forward_step_func, model, optimizer, opt_param_scheduler,
           train_data_iterator, valid_data_iterator,
           process_non_loss_data_func):
@@ -731,36 +752,26 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     timers('interval-time', log_level=0).start(barrier=True)
     print_datetime('before the start of training step')
     report_memory_flag = True
+    total_params = _calculate_total_params(model)
     while iteration < args.train_iters:
-        print_rank_0("0")
         update_num_microbatches(args.consumed_train_samples)
-        print_rank_0("1")
         args.curr_iteration = iteration
-        print_rank_0("2")
         loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
             train_step(forward_step_func,
                        train_data_iterator,
                        model,
                        optimizer,
                        opt_param_scheduler)
-        print_rank_0("3")
         iteration += 1
-        print_rank_0("4")
         args.consumed_train_samples += mpu.get_data_parallel_world_size() * \
                                        args.micro_batch_size * \
                                        get_num_microbatches()
-        print_rank_0("5")
         # Logging.
         loss_scale = optimizer.get_loss_scale().item()
-        print_rank_0("6")
         params_norm = None
         if args.log_params_norm:
             params_norm = calc_params_l2_norm(model)
-        if hasattr(model, 'total_params'):
-            total_params = model.total_params
-        else:
-            total_params = 0
-        print_rank_0("7")
+
         report_memory_flag = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
