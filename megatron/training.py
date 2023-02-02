@@ -477,9 +477,23 @@ def train_step(forward_step_func, data_iterator,
     return {}, skipped_iter, grad_norm, num_zeros_in_grad
 
 
+def get_flops(total_params, iter_time_s):
+    args = get_args()
+    world_size = torch.distributed.get_world_size()
+    ff = total_params * 6
+    attn = args.seq_length * args.hidden_size * args.num_layers * 60
+    flops = (
+            args.train_batch_size
+            * args.seq_length
+            * (ff + attn)
+            / (iter_time_s * world_size)
+    )
+    return flops
+
+
 def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                  loss_scale, report_memory_flag, skipped_iter,
-                 grad_norm, params_norm, num_zeros_in_grad):
+                 grad_norm, params_norm, num_zeros_in_grad, total_params):
     """Log training information such as losses, timing, ...."""
     args = get_args()
     timers = get_timers()
@@ -618,13 +632,15 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             'elapsed-time-per-iteration': elapsed_time_per_iteration,
             **loss_dict
         }
+        if total_params != 0:
+            metrics['runtime/flops'] = get_flops(total_params, elapsed_time_per_iteration)
 
         class DummyTimeWriter:
             def __init__(self):
                 pass
 
             def add_scalar(self, name, val, *args_, **kwargs):
-                metrics[f"timer/{name}"] = val
+                metrics[f"runtime/timer_{name}"] = val
 
         timers.write(timers_to_log, DummyTimeWriter(), iteration,
                      normalizer=total_iterations)
@@ -733,11 +749,15 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         params_norm = None
         if args.log_params_norm:
             params_norm = calc_params_l2_norm(model)
+        if hasattr(model, 'total_params'):
+            total_params = model.total_params
+        else:
+            total_params = 0
         report_memory_flag = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
                                           report_memory_flag, skipped_iter,
-                                          grad_norm, params_norm, num_zeros_in_grad)
+                                          grad_norm, params_norm, num_zeros_in_grad, total_params)
 
         # Autoresume
         if args.adlr_autoresume and \
