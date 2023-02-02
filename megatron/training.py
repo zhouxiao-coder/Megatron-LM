@@ -483,7 +483,7 @@ def get_flops(total_params, iter_time_s):
     ff = total_params * 6
     attn = args.seq_length * args.hidden_size * args.num_layers * 60
     flops = (
-            args.train_batch_size
+            args.global_batch_size
             * args.seq_length
             * (ff + attn)
             / (iter_time_s * world_size)
