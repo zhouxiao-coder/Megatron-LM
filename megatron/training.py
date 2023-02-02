@@ -643,6 +643,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             def add_scalar(self, name, val, *args_, **kwargs):
                 metrics[f"runtime/timer_{name}"] = val
 
+        print_rank_0('before timers written')
         timers.write(timers_to_log, DummyTimeWriter(), iteration,
                      normalizer=total_iterations)
         print_rank_0('timers written')
