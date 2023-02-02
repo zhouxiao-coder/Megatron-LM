@@ -1,7 +1,7 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 """General utilities."""
-
+import os
 import sys
 
 import torch
@@ -199,6 +199,11 @@ def print_rank_0(message):
             print(message, flush=True)
     else:
         print(message, flush=True)
+
+
+def debug_print(message):
+    os.getenv("DEBUG", "0") != "1" and print_rank_0(message)
+
 
 def is_last_rank():
     return torch.distributed.get_rank() == (
