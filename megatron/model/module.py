@@ -8,7 +8,6 @@ from torch.nn.parameter import Parameter
 
 from megatron import get_args
 from megatron.core import mpu, tensor_parallel
-from megatron.utils import print_rank_0
 
 _FLOAT_TYPES = (torch.FloatTensor, torch.cuda.FloatTensor)
 _HALF_TYPES = (torch.HalfTensor, torch.cuda.HalfTensor)
@@ -19,6 +18,14 @@ def param_is_not_shared(param):
     return not hasattr(param, 'shared') or not param.shared
 
 
+def _print_rank_0(message):
+    """If distributed is initialized, print only on rank 0."""
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:
+            print(message, flush=True)
+    else:
+        print(message, flush=True)
+
 class MegatronModule(torch.nn.Module):
     """Megatron specific extensions of torch Module with support
     for pipelining."""
@@ -28,7 +35,7 @@ class MegatronModule(torch.nn.Module):
         self.share_word_embeddings = share_word_embeddings
 
     def _calculate_total_params(self) -> int:
-        print_rank_0(" > calculating total number of parameters ...")
+        _print_rank_0(" > calculating total number of parameters ...")
         if mpu.get_data_parallel_rank() == 0:
             params = sum([p.nelement() for p in self.parameters()])
 
@@ -43,7 +50,7 @@ class MegatronModule(torch.nn.Module):
         total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
         torch.distributed.all_reduce(total_n_parameters)
         total_n_parameters = total_n_parameters.item()
-        print_rank_0(" > total number of parameters: {}".format(total_n_parameters))
+        _print_rank_0(" > total number of parameters: {}".format(total_n_parameters))
         return total_n_parameters
 
     def state_dict_for_save_checkpoint(self, prefix='', keep_vars=False):
