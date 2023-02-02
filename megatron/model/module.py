@@ -29,9 +29,10 @@ class MegatronModule(torch.nn.Module):
     def _calculate_total_params(self) -> int:
         if mpu.get_data_parallel_rank() == 0:
             params = sum([p.nelement() for p in self.parameters()])
+
             print(
-                " > number of parameters on model parallel rank {}: {}".format(
-                    mpu.get_model_parallel_rank(), params
+                " > number of parameters on tensor parallel rank {}: {}".format(
+                    mpu.get_tensor_model_parallel_rank(), params
                 ),
                 flush=True,
             )
