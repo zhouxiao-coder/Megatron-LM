@@ -649,6 +649,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                      normalizer=total_iterations)
         print('timers written', flush=True)
         wandb.log(metrics, step=iteration)
+        print("wandb logged", flush=True)
 
     if iteration % args.log_interval == 0:
         elapsed_time = timers('interval-time').elapsed(barrier=True)
