@@ -634,6 +634,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         }
         if total_params != 0:
             metrics['runtime/flops'] = get_flops(total_params, elapsed_time_per_iteration)
+        print_rank_0('FLOPS: {}'.format(metrics['runtime/flops']))
 
         class DummyTimeWriter:
             def __init__(self):
@@ -644,7 +645,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
 
         timers.write(timers_to_log, DummyTimeWriter(), iteration,
                      normalizer=total_iterations)
-
+        print_rank_0('timers written')
         wandb.log(metrics, step=iteration)
 
     if iteration % args.log_interval == 0:
