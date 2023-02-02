@@ -622,9 +622,11 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             )
 
     # Weights and biases reporting
-    if (iteration % args.log_interval == 0) and is_last_rank() and args.wandb_project_name:
+    if iteration % args.log_interval == 0:
         elapsed_time = timers('interval-time').elapsed(barrier=True)
         elapsed_time_per_iteration = elapsed_time / total_iterations
+
+    if (iteration % args.log_interval == 0) and is_last_rank() and args.wandb_project_name:
         metrics = {
             'learning-rate': learning_rate,
             'samples': args.consumed_train_samples,
@@ -636,13 +638,9 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if total_params != 0:
             metrics['runtime/flops'] = get_flops(total_params, elapsed_time_per_iteration)
             print('FLOPS: {}'.format(metrics['runtime/flops']), flush=True)
-        print("before wandb log")
         wandb.log(metrics, step=iteration)
-        print("after wandb log")
 
     if iteration % args.log_interval == 0:
-        elapsed_time = timers('interval-time').elapsed(barrier=True)
-        elapsed_time_per_iteration = elapsed_time / total_iterations
         if writer:
             if args.log_timers_to_tensorboard:
                 writer.add_scalar('iteration-time',
