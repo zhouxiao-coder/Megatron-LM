@@ -742,6 +742,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     report_memory_flag = True
     total_params = _calculate_total_params(model)
     while iteration < args.train_iters:
+        debug_print('iteration: {}'.format(iteration))
         update_num_microbatches(args.consumed_train_samples)
         args.curr_iteration = iteration
         loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
