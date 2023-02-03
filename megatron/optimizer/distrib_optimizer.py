@@ -717,3 +717,6 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                           self.model_float16_groups)
         copy_group_params(self.shard_fp32_groups,
                           self.model_fp32_groups)
+
+    def _copy_model_params_to_main_params(self):
+        pass
