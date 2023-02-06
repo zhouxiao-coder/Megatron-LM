@@ -99,7 +99,7 @@ def pretrain(train_valid_test_dataset_provider,
         args_defaults: a dictionary from argument-name to argument-value. It
             to set already parse arguments.
     """
-    signal(signal.SIGUSR1, dump_stack_trace)
+    signal.signal(signal.SIGUSR1, dump_stack_trace)
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(extra_args_provider=extra_args_provider,
                         args_defaults=args_defaults)
