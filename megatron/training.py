@@ -471,7 +471,8 @@ def train_step(forward_step_func, data_iterator,
 
 def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                  loss_scale, report_memory_flag, skipped_iter,
-                 grad_norm, params_norm, num_zeros_in_grad):
+                 grad_norm, params_norm, num_zeros_in_grad,
+                 total_params):
     """Log training information such as losses, timing, ...."""
     args = get_args()
     timers = get_timers()
@@ -601,6 +602,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     if iteration % args.log_interval == 0:
         elapsed_time = timers('interval-time').elapsed(barrier=True)
         elapsed_time_per_iteration = elapsed_time / total_iterations
+        flops = get_flops(total_params, elapsed_time_per_iteration)
         if writer:
             if args.log_timers_to_tensorboard:
                 writer.add_scalar('iteration-time',
@@ -611,6 +613,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             args.consumed_train_samples)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
             elapsed_time_per_iteration * 1000.0)
+        log_string += ' flops: {:.3E} |'.format(flops)
         log_string += ' learning rate: {:.3E} |'.format(learning_rate)
         log_string += ' global batch size: {:5d} |'.format(batch_size)
         for key in total_loss_dict:
@@ -655,6 +658,37 @@ def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler):
     timers.log(['save-checkpoint'])
 
 
+def _calculate_total_params(model) -> int:
+    print_rank_0(" > calculating total number of parameters ...")
+    params = 0
+    for model_module in model:
+        if mpu.get_data_parallel_rank() == 0:
+            params += sum([p.nelement() for p in model_module.parameters()])
+
+            print_rank_0(
+                " > number of parameters on tensor parallel rank {}: {}".format(
+                    mpu.get_tensor_model_parallel_rank(), params
+                )
+            )
+    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
+    torch.distributed.all_reduce(total_n_parameters)
+    total_n_parameters = total_n_parameters.item()
+    print_rank_0(" > total number of parameters: {}".format(total_n_parameters))
+    return total_n_parameters
+
+def get_flops(total_params, iter_time_s):
+    args = get_args()
+    world_size = torch.distributed.get_world_size()
+    ff = total_params * 6
+    attn = args.seq_length * args.hidden_size * args.num_layers * 60
+    flops = (
+            args.global_batch_size
+            * args.seq_length
+            * (ff + attn)
+            / (iter_time_s * world_size)
+    )
+    return flops
+
 def train(forward_step_func, model, optimizer, opt_param_scheduler,
           train_data_iterator, valid_data_iterator,
           process_non_loss_data_func):
@@ -671,6 +705,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Tracking loss.
     total_loss_dict = {}
+    total_params = _calculate_total_params(model)
 
     # Iterations.
     iteration = args.iteration
@@ -701,7 +736,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
                                           report_memory_flag, skipped_iter,
-                                          grad_norm, params_norm, num_zeros_in_grad)
+                                          grad_norm, params_norm, num_zeros_in_grad,
+                                          total_params)
 
         # Autoresume
         if args.adlr_autoresume and \
