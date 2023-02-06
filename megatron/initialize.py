@@ -131,7 +131,9 @@ def _compile_dependencies():
         start_time = time.time()
         print('> compiling and loading fused kernels ...', flush=True)
         fused_kernels.load(args)
+        print("> before barrier()", flush=True)
         torch.distributed.barrier()
+        print("> after barrier()", flush=True)
     else:
         torch.distributed.barrier()
         fused_kernels.load(args)
