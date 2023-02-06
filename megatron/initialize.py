@@ -32,6 +32,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
     Returns a function to finalize distributed env initialization 
     (optionally, only when args.lazy_mpu_init == True)
     """
+    print("Initializing Megatron ...", flush=True)
     if not allow_no_cuda:
         # Make sure cuda is available.
         assert torch.cuda.is_available(), 'Megatron requires CUDA.'
@@ -89,11 +90,13 @@ def _compile_dependencies():
 
     args = get_args()
 
+    local_rank = int(os.getenv('LOCAL_RANK'))
+
     # =========================
     # Compile dataset C++ code.
     # =========================
     # TODO: move this to ninja
-    if torch.distributed.get_rank() == 0:
+    if local_rank == 0:
         start_time = time.time()
         print('> compiling dataset index builder ...')
         from megatron.data.dataset_utils import compile_helper
@@ -124,7 +127,7 @@ def _compile_dependencies():
                   ' back to unfused kernel invocations.', flush=True)
     
     # Always build on rank zero first.
-    if torch.distributed.get_rank() == 0:
+    if local_rank == 0:
         start_time = time.time()
         print('> compiling and loading fused kernels ...', flush=True)
         fused_kernels.load(args)
