@@ -140,7 +140,7 @@ def _compile_dependencies():
     # rest of the program. We think this might ensure that
     # the lock is released.
     torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
+    if local_rank == 0:
         print('>>> done with compiling and loading fused kernels. '
               'Compilation time: {:.3f} seconds'.format(
                   time.time() - start_time), flush=True)
