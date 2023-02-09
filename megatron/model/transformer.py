@@ -972,6 +972,11 @@ class ParallelTransformer(MegatronModule):
                     set_parallel_mode=True,
                     fuse_qkv_params=True)
 
+        
+        pipeline_rank = mpu.get_pipeline_model_parallel_rank()
+        if args.standalone_embedding_stage and pipeline_rank != 0:
+            pipeline_rank -= 1
+
         if args.virtual_pipeline_model_parallel_size is not None:
             assert args.num_layers % args.virtual_pipeline_model_parallel_size == 0, \
                 'num_layers_per_stage must be divisible by ' \
@@ -990,19 +995,18 @@ class ParallelTransformer(MegatronModule):
             # Stage 1: [2, 3]  [6, 7]
             offset = mpu.get_virtual_pipeline_model_parallel_rank() * (
                 args.num_layers // args.virtual_pipeline_model_parallel_size) + \
-                (mpu.get_pipeline_model_parallel_rank() * self.num_layers)
+                (pipeline_rank * self.num_layers)
         else:
             # Each stage gets a contiguous set of layers.
             if args.model_type == ModelType.encoder_and_decoder and \
                     mpu.get_pipeline_model_parallel_world_size() > 1:
-                pipeline_rank = mpu.get_pipeline_model_parallel_rank()
                 if layer_type == LayerType.encoder:
                     offset = pipeline_rank * self.num_layers
                 else:
                     num_ranks_in_enc = args.pipeline_model_parallel_split_rank
                     offset = (pipeline_rank - num_ranks_in_enc) * self.num_layers
             else:
-                offset = mpu.get_pipeline_model_parallel_rank() * self.num_layers
+                offset = pipeline_rank * self.num_layers
 
         if self.num_layers == 0:
             # When a standalone embedding stage is used (e.g.,

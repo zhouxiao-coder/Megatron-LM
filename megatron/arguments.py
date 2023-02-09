@@ -521,6 +521,12 @@ def _add_logging_args(parser):
     group.add_argument('--log-world-size-to-tensorboard',
                        action='store_true',
                        help='Enable world size logging to tensorboard.')
+    group.add_argument('--use_wandb',
+                       action='store_true',
+                       help='Upload to wandb.')
+    group.add_argument('--wandb_team', type=str, default=None)
+    group.add_argument('--wandb_project', type=str, default=None)
+    group.add_argument('--wandb_group', type=str, default=None)
 
     return parser
 
