@@ -11,6 +11,8 @@ _TRAIN_START_TIME = time.time()
 import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 
+import wandb
+
 from megatron import get_args
 from megatron import get_signal_handler
 from megatron import get_timers
@@ -103,6 +105,26 @@ def pretrain(train_valid_test_dataset_provider,
     print_datetime('after megatron is initialized')
 
     args = get_args()
+    if is_last_rank() and args.use_wandb:
+        assert args.wandb_team is not None and args.wandb_group is not None, "wandb_team or wandb_group not set."
+        group_name = args.wandb_group + '_' + wandb.util.generate_id()
+        try:
+            wandb.init(
+                project=args.wandb_project,
+                group=group_name,
+                save_code=False,
+                force=False,
+                entity=args.wandb_team,
+            )
+        except wandb.UsageError as e:
+            args.update_value("use_wandb", False)
+            print(e)
+            print(
+                "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
+                flush=True,
+            )
+        wandb.config.update(args)
+
     timers = get_timers()
 
     # Model, optimizer, and learning rate.
@@ -615,6 +637,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         log_string += ' flops: {:.3E} |'.format(flops)
         log_string += ' learning rate: {:.3E} |'.format(learning_rate)
         log_string += ' global batch size: {:5d} |'.format(batch_size)
+        lm_loss = None
         for key in total_loss_dict:
             if key not in [advanced_iters_key, skipped_iters_key,
                            nan_iters_key]:
@@ -622,6 +645,8 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                       float(max(1, total_loss_dict[advanced_iters_key]))
                 if avg > 0.0:
                     log_string += ' {}: {:.6E} |'.format(key, avg)
+                    if key == 'lm loss':
+                        lm_loss = avg
                 total_loss_dict[key] = torch.cuda.FloatTensor([0.0])
         log_string += ' loss scale: {:.1f} |'.format(loss_scale)
         if grad_norm is not None:
@@ -638,6 +663,22 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         total_loss_dict[skipped_iters_key] = 0
         total_loss_dict[nan_iters_key] = 0
         print_rank_last(log_string)
+        print_rank_0(log_string)
+        if is_last_rank() and args.use_wandb:
+            wandb.log({'runtime/iteration_time': elapsed_time_per_iteration}, step=iteration)
+            wandb.log({'runtime/flops_per_gpu': flops}, step=iteration)
+            wandb.log({'runtime/samples_per_sec': args.global_batch_size / elapsed_time_per_iteration}, step=iteration)
+
+            wandb.log({'train/lm_loss': lm_loss}, step=iteration)
+            wandb.log({'train/loss_scale': loss_scale}, step=iteration)
+            wandb.log({'train/learning_rate': learning_rate}, step=iteration)
+            if grad_norm is not None:
+                wandb.log({'train/grad_norm': grad_norm}, step=iteration)
+            if num_zeros_in_grad is not None:
+                wandb.log({'train/num_zeros_in_grad': num_zeros_in_grad}, step=iteration)
+            if params_norm is not None:
+                wandb.log({'train/params_norm': params_norm}, step=iteration)
+
         if report_memory_flag and learning_rate > 0.:
             # Report memory after optimizer state has been initialized.
             report_memory('(after {} iterations)'.format(iteration))
