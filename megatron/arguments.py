@@ -436,6 +436,13 @@ def _add_network_size_args(parser):
     group.add_argument('--max-position-embeddings', type=int, default=None,
                        help='Maximum number of position embeddings to use. '
                        'This is the size of position embedding.')
+    group.add_argument('--position-embedding-type', type=str, default='absolute',
+                       choices=['absolute', 'rotary'],
+                       help='Type of positional embedding to use - choose from "absolute" and "rotary".')
+    group.add_argument('--rotary-pct', type=float, default=1.0,
+                       help='pct of hidden dims to apply rotary positional embedding to.')
+    group.add_argument('--rotary-emb-base', type=int, default=10000,
+                       help='Base for rotary positional embedding.')
     group.add_argument('--make-vocab-size-divisible-by', type=int, default=128,
                        help='Pad the vocab size to be divisible by this value.'
                        'This is added for computational efficieny reasons.')
@@ -697,6 +704,18 @@ def _add_initialization_args(parser):
     group.add_argument('--data-parallel-random-init', action='store_true',
                        help='Enable random initialization of params '
                        'across data parallel ranks')
+    group.add_argument('--init-method', type=str, default='normal',
+                       choices=[
+                          'normal', 'scaled_normal', 'orthogonal',
+                          'scaled_orthogonal', 'xavier_uniform',
+                          'xavier_normal', 'wang_init', 'small_init'],
+                       help='Init function used on all layers except ff residual outputs.')
+    group.add_argument('--output-layer-init-method', type=str, default='scaled_normal',
+                       choices=[
+                          'normal', 'scaled_normal', 'orthogonal',
+                          'scaled_orthogonal', 'xavier_uniform',
+                          'xavier_normal', 'wang_init', 'small_init'],
+                        help='Init function used for ff residual outputs.')
     group.add_argument('--init-method-std', type=float, default=0.02,
                        help='Standard deviation of the zero mean normal '
                        'distribution used for weight initialization.')
