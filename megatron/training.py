@@ -105,7 +105,7 @@ def pretrain(train_valid_test_dataset_provider,
     print_datetime('after megatron is initialized')
 
     args = get_args()
-    if is_last_rank() and args.use_wandb:
+    if args.use_wandb:
         assert args.wandb_team is not None and args.wandb_group is not None, "wandb_team or wandb_group not set."
         group_name = args.wandb_group + '_' + wandb.util.generate_id()
         try:
@@ -117,7 +117,7 @@ def pretrain(train_valid_test_dataset_provider,
                 entity=args.wandb_team,
             )
         except wandb.UsageError as e:
-            args.update_value("use_wandb", False)
+            args.use_wandb = False
             print(e)
             print(
                 "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
@@ -895,6 +895,10 @@ def evaluate(forward_step_func,
 
     for key in total_loss_dict:
         total_loss_dict[key] /= args.eval_iters * get_num_microbatches()
+
+    if is_last_rank() and args.use_wandb:
+        for key in total_loss_dict:
+            wandb.log({f'validation/{key}': total_loss_dict[key]})
 
     return total_loss_dict, collected_non_loss_data
 
