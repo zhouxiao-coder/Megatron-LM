@@ -436,6 +436,13 @@ def _add_network_size_args(parser):
     group.add_argument('--max-position-embeddings', type=int, default=None,
                        help='Maximum number of position embeddings to use. '
                        'This is the size of position embedding.')
+    group.add_argument('--position-embedding-type', type=str, default='absolute',
+                       choices=['absolute', 'rotary'],
+                       help='Type of positional embedding to use - choose from "absolute" and "rotary".')
+    group.add_argument('--rotary-pct', type=float, default=1.0,
+                       help='pct of hidden dims to apply rotary positional embedding to.')
+    group.add_argument('--rotary-emb-base', type=int, default=10000,
+                       help='Base for rotary positional embedding.')
     group.add_argument('--make-vocab-size-divisible-by', type=int, default=128,
                        help='Pad the vocab size to be divisible by this value.'
                        'This is added for computational efficieny reasons.')

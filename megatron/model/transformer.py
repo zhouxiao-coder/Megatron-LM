@@ -14,6 +14,12 @@ from megatron.model import LayerNorm
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.fused_bias_gelu import bias_gelu_impl
 from megatron.model.utils import attention_mask_func, openai_gelu, erf_gelu
+from megatron.model.positional_embeddings import (
+    RotaryEmbedding,
+    apply_rotary_pos_emb,
+    apply_rotary_pos_emb_torch,
+    AliBi,
+)
 
 try:
     from einops import rearrange
@@ -370,6 +376,7 @@ class ParallelAttention(MegatronModule):
                  attn_mask_type=AttnMaskType.padding):
         super(ParallelAttention, self).__init__()
         args = get_args()
+        self.bf16 = args.bf16
         self.layer_number = max(1, layer_number)
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
@@ -442,6 +449,25 @@ class ParallelAttention(MegatronModule):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             **_args_to_kwargs())
+
+        if args.position_embedding_type:
+            if args.rotary_pct == 1:
+                self.rotary_ndims = None
+            else:
+                assert args.rotary_pct < 1
+                self.rotary_ndims = int(
+                    self.hidden_size_per_attention_head * args.rotary_pct
+                )
+            dim = (
+                self.rotary_ndims
+                if self.rotary_ndims is not None
+                else self.hidden_size_per_attention_head
+            )
+            self.rotary_emb = RotaryEmbedding(
+                dim, base=args.rotary_emb_base, precision=args.params_dtype
+            )
+        else:
+            self.rotary_emb = None
 
     def _checkpointed_attention_forward(self, query_layer, key_layer,
                                         value_layer, attention_mask):
@@ -530,6 +556,41 @@ class ParallelAttention(MegatronModule):
                 (self.num_attention_heads_per_partition,
                  self.hidden_size_per_attention_head)
             query_layer = query_layer.view(*new_tensor_shape)
+
+        # ================
+        # Rotary Embedding
+        # ================
+        if self.rotary_emb is not None:
+            if self.rotary_ndims is not None:
+                # partial rotary
+                query_rot, query_pass = (
+                    query_layer[..., : self.rotary_ndims],
+                    query_layer[..., self.rotary_ndims :],
+                )
+                key_rot, key_pass = (
+                    key_layer[..., : self.rotary_ndims],
+                    key_layer[..., self.rotary_ndims :],
+                )
+            else:
+                # full rotary
+                query_rot, key_rot = query_layer, key_layer
+            apply_rotary_fn = (
+                apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
+            )
+
+            seq_len = key_layer.shape[0]
+            offset = 0
+            if inference_params:
+                offset = inference_params.sequence_len_offset
+                seq_len += offset
+            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
+            query_layer, key_layer = apply_rotary_fn(
+                query_rot, key_rot, cos, sin, offset=offset
+            )
+
+            if self.rotary_ndims is not None:
+                query_layer = torch.cat((query_layer, query_pass), dim=-1)
+                key_layer = torch.cat((key_layer, key_pass), dim=-1)
 
         # ==================================
         # Adjust key and value for inference

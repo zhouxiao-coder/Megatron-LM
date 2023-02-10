@@ -155,13 +155,15 @@ class Embedding(MegatronModule):
         )
         self._word_embeddings_key = 'word_embeddings'
 
-        # Position embedding (serial).
-        self.position_embeddings = torch.nn.Embedding(
-            max_sequence_length, self.hidden_size)
-        self._position_embeddings_key = 'position_embeddings'
-        # Initialize the position embeddings.
-        if args.perform_initialization:
-            self.init_method(self.position_embeddings.weight)
+        self.position_embedding_type = args.position_embedding_type
+        if self.position_embedding_type == 'absolute':
+            # Position embedding (serial).
+            self.position_embeddings = torch.nn.Embedding(
+                max_sequence_length, self.hidden_size)
+            self._position_embeddings_key = 'position_embeddings'
+            # Initialize the position embeddings.
+            if args.perform_initialization:
+                self.init_method(self.position_embeddings.weight)
 
         # Token type embedding.
         # Add this as an optional field that can be added through
@@ -186,8 +188,9 @@ class Embedding(MegatronModule):
         """Zero out all parameters in embedding."""
         self.word_embeddings.weight.data.fill_(0)
         self.word_embeddings.weight.shared = True
-        self.position_embeddings.weight.data.fill_(0)
-        self.position_embeddings.weight.shared = True
+        if self.position_embedding_type == 'absolute':
+            self.position_embeddings.weight.data.fill_(0)
+            self.position_embeddings.weight.shared = True
         if self.num_tokentypes > 0:
             self.tokentype_embeddings.weight.data.fill_(0)
             self.tokentype_embeddings.weight.shared = True
@@ -212,8 +215,11 @@ class Embedding(MegatronModule):
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
-        position_embeddings = self.position_embeddings(position_ids)
-        embeddings = words_embeddings + position_embeddings
+        if self.position_embedding_type == 'absolute':
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings = words_embeddings + position_embeddings
+        else:
+            embeddings = words_embeddings
         if tokentype_ids is not None:
             assert self.tokentype_embeddings is not None
             embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
@@ -244,9 +250,10 @@ class Embedding(MegatronModule):
         state_dict_[self._word_embeddings_key] \
             = self.word_embeddings.state_dict(prefix=prefix,
                                               keep_vars=keep_vars)
-        state_dict_[self._position_embeddings_key] \
-            = self.position_embeddings.state_dict(prefix=prefix,
-                                                  keep_vars=keep_vars)
+        if self.position_embedding_type == 'absolute':
+            state_dict_[self._position_embeddings_key] \
+                = self.position_embeddings.state_dict(prefix=prefix,
+                                                      keep_vars=keep_vars)
         if self.num_tokentypes > 0:
             state_dict_[self._tokentype_embeddings_key] \
                 = self.tokentype_embeddings.state_dict(prefix=prefix,
@@ -270,16 +277,17 @@ class Embedding(MegatronModule):
         self.word_embeddings.load_state_dict(state_dict_, strict=strict)
 
         # Position embedding.
-        if self._position_embeddings_key in state_dict:
-            state_dict_ = state_dict[self._position_embeddings_key]
-        else:
-            # for backward compatibility.
-            state_dict_ = {}
-            for key in state_dict.keys():
-                if 'position_embeddings' in key:
-                    state_dict_[key.split('position_embeddings.')[1]] \
-                        = state_dict[key]
-        self.position_embeddings.load_state_dict(state_dict_, strict=strict)
+        if self.position_embedding_type == 'absolute':
+            if self._position_embeddings_key in state_dict:
+                state_dict_ = state_dict[self._position_embeddings_key]
+            else:
+                # for backward compatibility.
+                state_dict_ = {}
+                for key in state_dict.keys():
+                    if 'position_embeddings' in key:
+                        state_dict_[key.split('position_embeddings.')[1]] \
+                            = state_dict[key]
+            self.position_embeddings.load_state_dict(state_dict_, strict=strict)
 
         # Tokentype embedding.
         if self.num_tokentypes > 0:
