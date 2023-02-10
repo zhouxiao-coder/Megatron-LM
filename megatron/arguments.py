@@ -704,6 +704,18 @@ def _add_initialization_args(parser):
     group.add_argument('--data-parallel-random-init', action='store_true',
                        help='Enable random initialization of params '
                        'across data parallel ranks')
+    group.add_argument('--init-method', type=str, default='normal',
+                       choices=[
+                          'normal', 'scaled_normal', 'orthogonal',
+                          'scaled_orthogonal', 'xavier_uniform',
+                          'xavier_normal', 'wang_init', 'small_init'],
+                       help='Init function used on all layers except ff residual outputs.')
+    group.add_argument('--output-layer-init-method', type=str, default='scaled_normal',
+                       choices=[
+                          'normal', 'scaled_normal', 'orthogonal',
+                          'scaled_orthogonal', 'xavier_uniform',
+                          'xavier_normal', 'wang_init', 'small_init'],
+                        help='Init function used for ff residual outputs.')
     group.add_argument('--init-method-std', type=float, default=0.02,
                        help='Standard deviation of the zero mean normal '
                        'distribution used for weight initialization.')
