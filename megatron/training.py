@@ -105,7 +105,7 @@ def pretrain(train_valid_test_dataset_provider,
     print_datetime('after megatron is initialized')
 
     args = get_args()
-    if args.use_wandb:
+    if is_last_rank() and args.use_wandb:
         assert args.wandb_team is not None and args.wandb_group is not None, "wandb_team or wandb_group not set."
         group_name = args.wandb_group + '_' + wandb.util.generate_id()
         try:
