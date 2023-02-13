@@ -7,6 +7,7 @@ from abc import abstractmethod
 from typing import Union, List
 
 from tokenizers import Tokenizer
+import sentencepiece as spm
 from .bert_tokenization import FullTokenizer as FullBertTokenizer
 from .gpt2_tokenization import GPT2Tokenizer
 
@@ -38,6 +39,9 @@ def build_tokenizer(args):
     elif args.tokenizer_type.lower() == "HFTokenizer".lower():
         assert args.vocab_file is not None
         tokenizer = HFTokenizer(args.vocab_file)
+    elif args.tokenizer_type.lower() == "MT5Tokenizer".lower():
+        assert args.vocab_file is not None
+        tokenizer = MT5Tokenizer(args.vocab_file)
     else:
         raise NotImplementedError('{} tokenizer is not '
                                   'implemented.'.format(args.tokenizer_type))
@@ -481,6 +485,44 @@ class HFTokenizer(AbstractTokenizer):
 
     def tokenize_batch(self, text_batch: Union[List[str], str]):
         return self.tokenizer.encode_batch(text_batch)
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(token_ids)
+
+    @property
+    def eod(self):
+        return self.eod_id
+
+class MT5Tokenizer(AbstractTokenizer):
+    """Specialized sentence piece tokenizer from customized mt5"""
+    def __init__(self, vocab_file):
+        name = "MT5"
+        super().__init__(name)
+
+        self.tokenizer = spm.SentencePieceProcessor(model_file=vocab_file)
+        self.special_tokens = {'eos_token': '</s>', 'unk_token': '<unk>', 'pad_token': '<pad>'}
+        self.eod_id = self.tokenizer.piece_to_id(self.special_tokens['eos_token'])
+
+    @property
+    def vocab_size(self):
+        return self.tokenizer.get_piece_size()
+
+    @property
+    def vocab(self):
+        return {
+            self.tokenizer.id_to_piece(idx): idx
+            for idx in range(self.tokenizer.get_piece_size())
+        }
+
+    @property
+    def inv_vocab(self):
+        return {
+            idx: self.tokenizer.id_to_piece(idx)
+            for idx in range(self.tokenizer.get_piece_size())
+        }
+
+    def tokenize(self, text):
+        return self.tokenizer.encode(text)
 
     def detokenize(self, token_ids):
         return self.tokenizer.decode(token_ids)
