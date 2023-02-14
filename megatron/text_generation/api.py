@@ -53,16 +53,10 @@ def generate_and_post_process(model,
 
     # Only post-process on first stage.
     if mpu.is_pipeline_first_stage():
-        tokens, prompts_plus_generations, prompts_plus_generations_segments = \
-            detokenize_generations(tokens, lengths, True)
+        tokens, prompts_plus_generations = \
+            detokenize_generations(tokens, lengths, False)
 
-        if return_output_log_probs:
-            output_log_probs = output_log_probs.cpu().numpy().tolist()
-            for i, (prob, seg) in enumerate(zip(output_log_probs, prompts_plus_generations_segments)):
-                output_log_probs[i] = prob[:len(seg)-1]
-
-        return prompts_plus_generations, prompts_plus_generations_segments, \
-            output_log_probs, tokens
+        return prompts_plus_generations, output_log_probs, tokens
 
     return None
 
