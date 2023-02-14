@@ -2,6 +2,7 @@
 
 """General utilities."""
 
+import os
 import sys
 
 import torch
@@ -211,3 +212,18 @@ def print_rank_last(message):
             print(message, flush=True)
     else:
         print(message, flush=True)
+
+def local_rank():
+    """Local rank of process"""
+    local_rank = os.environ.get("LOCAL_RANK")
+    if local_rank is None:
+        print(
+            "utils.local_rank() environment variable LOCAL_RANK not set, defaulting to 0",
+            flush=True,
+        )
+        local_rank = 0
+    return int(local_rank)
+
+def is_local_main():
+    """True if is the local main process"""
+    return local_rank() == 0
