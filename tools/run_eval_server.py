@@ -27,7 +27,8 @@ class MegatronEval(Resource):
 
         input_ids = request.get_json()["input_ids"]
         if not isinstance(input_ids, list):
-            return "prompts is not a list of strings", 400
+            # check input ids is good
+            return "bad input_ids", 400
         input_ids = torch.LongTensor(input_ids)
         with lock:
             dist.barrier()  # sync with other workers
