@@ -95,6 +95,8 @@ def _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS):
                           for prompt in prompts]
     else:
         prompts_tokens = [tokenizer.tokenize(prompt) for prompt in prompts]
+        # If prompt is empty, use BOS as the prompt.
+        prompts_tokens = [prompt if len(prompt) != 0 else [tokenizer.eod] for prompt in prompts_tokens]
 
     # Now we have a list of list of tokens which each list has a different
     # size. We want to extend this list to:
