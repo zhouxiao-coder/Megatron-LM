@@ -4,6 +4,7 @@
 
 import os
 import random
+import re
 import sys
 import numpy as np
 
@@ -367,18 +368,23 @@ def _load_base_checkpoint(load_dir, use_distributed_optimizer, rank0=False):
     # Read the tracker file and set the iteration.
     tracker_filename = get_checkpoint_tracker_filename(load_dir)
 
-    # If no tracker file, return nothing
-    if not os.path.isfile(tracker_filename):
-        if not rank0:
-            print_rank_0('WARNING: could not find the metadata file {} '.format(
-                tracker_filename))
-            print_rank_0('    will not load any checkpoints and will start from '
-                         'random')
-        return None, None, False
-
-    # Otherwise, read the tracker file and either set the iteration or
-    # mark it as a release checkpoint.
-    iteration, release = read_metadata(tracker_filename)
+    if os.path.isfile(tracker_filename):
+        # Read the tracker file and either set the iteration or
+        # mark it as a release checkpoint.
+        iteration, release = read_metadata(tracker_filename)
+    else:
+        load_dir = load_dir.rstrip('/')
+        basename = os.path.basename(load_dir)
+        m = re.match('iter_([0-9]+)$', basename)
+        if m is None:
+            if not rank0:
+                print_rank_0('WARNING: {} is not a valid checkpoint dir '.format(
+                    load_dir))
+                print_rank_0('    will not load any checkpoints and will start from '
+                            'random')
+            return None, None, False
+        iteration, release = int(m.group(1)), False
+        load_dir = os.path.dirname(load_dir)
 
     # Checkpoint.
     if rank0:
@@ -525,8 +531,7 @@ def load_checkpoint(model, optimizer, opt_param_scheduler, load_arg='load', stri
                 iteration = model_state_dict['total_iters']
             except KeyError:
                 print_rank_0('A metadata file exists but unable to load '
-                             'iteration from checkpoint {}, exiting'.format(
-                                 checkpoint_name))
+                             'iteration from checkpoint {}, exiting'.format(iteration))
                 sys.exit()
 
     # Check arguments.
