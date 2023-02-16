@@ -333,6 +333,9 @@ def validate_args(args, defaults={}):
     if args.sequence_parallel:
         args.async_tensor_model_parallel_allreduce = False
 
+    # Activation function
+    if args.glu_activation is not None and args.bias_gelu_fusion:
+        raise ValueError("if glu-activation is used, please set --no-bias-gelu-fusion")
 
     if os.environ.get('CUDA_DEVICE_MAX_CONNECTIONS') != "1":
         if args.sequence_parallel:
@@ -456,6 +459,10 @@ def _add_network_size_args(parser):
                        help='Use OpenAIs GeLU implementation. This option'
                        'should not be used unless for backward compatibility'
                        'reasons.')
+    # reference:
+    # https://github.com/bigscience-workshop/Megatron-DeepSpeed/blob/master/megatron/arguments.py#L403
+    group.add_argument('--glu-activation', type=str, choices=["geglu", "liglu", "reglu", "swiglu"],
+                       help='GLU activations to use.')
     group.add_argument('--onnx-safe', type=bool, required=False,
                        help='Use workarounds for known problems with '
                        'Torch ONNX exporter')

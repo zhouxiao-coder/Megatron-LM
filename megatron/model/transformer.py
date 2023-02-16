@@ -20,6 +20,7 @@ from megatron.model.positional_embeddings import (
     apply_rotary_pos_emb_torch,
     AliBi,
 )
+from megatron.model.glu_activations import GLU_ACTIVATIONS
 
 try:
     from einops import rearrange
@@ -105,7 +106,9 @@ class ParallelMLP(MegatronModule):
 
         self.bias_gelu_fusion = args.bias_gelu_fusion
         self.activation_func = F.gelu
-        if args.openai_gelu:
+        if args.glu_activation:
+            self.activation_func = GLU_ACTIVATIONS[args.glu_activation]
+        elif args.openai_gelu:
             self.activation_func = openai_gelu
         elif args.onnx_safe:
             self.activation_func = erf_gelu
